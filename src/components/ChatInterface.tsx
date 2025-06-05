@@ -1,8 +1,8 @@
-
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Settings, MessageSquare, Code, HeartHandshake } from 'lucide-react';
+import { Send, Bot, User, Settings, MessageSquare, Code, HeartHandshake, Edit2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -28,6 +28,8 @@ const ChatInterface = () => {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [selectedMode, setSelectedMode] = useState('general');
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const API_KEY = "AIzaSyClhA0IupF8uw_Da4yUNtJiLC96oS8DJQE";
@@ -77,6 +79,96 @@ const ChatInterface = () => {
     };
     setMessages([welcomeMessage]);
   }, [selectedMode]);
+
+  const startEditing = (messageId: string, currentText: string) => {
+    setEditingMessageId(messageId);
+    setEditingText(currentText);
+  };
+
+  const cancelEditing = () => {
+    setEditingMessageId(null);
+    setEditingText('');
+  };
+
+  const saveEdit = async (messageId: string) => {
+    if (!editingText.trim()) return;
+
+    // Update the message in the state
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId 
+        ? { ...msg, text: editingText }
+        : msg
+    ));
+
+    // Find the edited message and all messages after it
+    const messageIndex = messages.findIndex(msg => msg.id === messageId);
+    const messagesBeforeEdit = messages.slice(0, messageIndex + 1);
+    
+    // Update the edited message
+    messagesBeforeEdit[messageIndex] = {
+      ...messagesBeforeEdit[messageIndex],
+      text: editingText
+    };
+
+    // Remove all bot responses after the edited message
+    const updatedMessages = messagesBeforeEdit.filter((msg, index) => {
+      if (index <= messageIndex) return true;
+      return msg.sender === 'user';
+    });
+
+    setMessages(updatedMessages);
+    setEditingMessageId(null);
+    setEditingText('');
+    setIsLoading(true);
+
+    // Generate new response based on edited message
+    try {
+      const response = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `${currentMode.prompt}\n\nUser: ${editingText}`
+                }
+              ]
+            }
+          ]
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from AI');
+      }
+
+      const data = await response.json();
+      const botResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Sorry, I couldn\'t generate a response. Please try again.';
+
+      const botMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: botResponse,
+        sender: 'bot',
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error sending message:', error);
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        text: 'Sorry, I encountered an error. Please try again later.',
+        sender: 'bot',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const sendMessage = async () => {
     if (!inputValue.trim()) return;
@@ -213,24 +305,71 @@ const ChatInterface = () => {
                   )}
                 </div>
                 
-                <Card
-                  className={`${
-                    message.sender === 'user'
-                      ? 'bg-blue-500 text-white border-blue-500'
-                      : 'bg-white'
-                  }`}
-                >
-                  <CardContent className="p-3">
-                    <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                    <p
-                      className={`text-xs mt-2 ${
-                        message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                      }`}
-                    >
-                      {message.timestamp.toLocaleTimeString()}
-                    </p>
-                  </CardContent>
-                </Card>
+                <div className="flex flex-col space-y-2">
+                  <Card
+                    className={`${
+                      message.sender === 'user'
+                        ? 'bg-blue-500 text-white border-blue-500'
+                        : 'bg-white'
+                    }`}
+                  >
+                    <CardContent className="p-3">
+                      {editingMessageId === message.id ? (
+                        <div className="space-y-2">
+                          <Textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            className="min-h-[60px] text-sm bg-white text-black border-gray-300"
+                            autoFocus
+                          />
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              onClick={() => saveEdit(message.id)}
+                              disabled={!editingText.trim()}
+                            >
+                              <Check className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={cancelEditing}
+                            >
+                              <X className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                          <div className="flex items-center justify-between mt-2">
+                            <p
+                              className={`text-xs ${
+                                message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
+                              }`}
+                            >
+                              {message.timestamp.toLocaleTimeString()}
+                            </p>
+                            {message.sender === 'user' && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEditing(message.id, message.text)}
+                                className={`h-6 w-6 p-0 ${
+                                  message.sender === 'user' 
+                                    ? 'text-blue-100 hover:text-white hover:bg-blue-600' 
+                                    : 'text-gray-500 hover:text-gray-700'
+                                }`}
+                              >
+                                <Edit2 className="w-3 h-3" />
+                              </Button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
           ))}
