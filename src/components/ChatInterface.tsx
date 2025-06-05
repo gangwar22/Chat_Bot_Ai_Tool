@@ -25,6 +25,46 @@ interface ChatMode {
   color: string;
 }
 
+const formatMessageContent = (text: string) => {
+  // Split content by code blocks (```...```)
+  const codeBlockRegex = /```(\w+)?\n?([\s\S]*?)```/g;
+  const parts = [];
+  let lastIndex = 0;
+  let match;
+
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    // Add text before code block
+    if (match.index > lastIndex) {
+      const beforeText = text.slice(lastIndex, match.index).trim();
+      if (beforeText) {
+        parts.push({ type: 'text', content: beforeText });
+      }
+    }
+
+    // Add code block
+    const language = match[1] || 'code';
+    const code = match[2].trim();
+    parts.push({ type: 'code', content: code, language });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    const remainingText = text.slice(lastIndex).trim();
+    if (remainingText) {
+      parts.push({ type: 'text', content: remainingText });
+    }
+  }
+
+  // If no code blocks found, return as single text part
+  if (parts.length === 0) {
+    parts.push({ type: 'text', content: text });
+  }
+
+  return parts;
+};
+
 const ChatInterface = () => {
   const { user, signOut } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -326,15 +366,15 @@ const ChatInterface = () => {
                 </div>
                 
                 <div className="flex flex-col space-y-2">
-                  <Card
-                    className={`${
-                      message.sender === 'user'
-                        ? 'bg-blue-500 text-white border-blue-500'
-                        : 'bg-white'
-                    }`}
-                  >
-                    <CardContent className="p-3">
-                      {editingMessageId === message.id ? (
+                  {editingMessageId === message.id ? (
+                    <Card
+                      className={`${
+                        message.sender === 'user'
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'bg-white'
+                      }`}
+                    >
+                      <CardContent className="p-3">
                         <div className="space-y-2">
                           <Textarea
                             value={editingText}
@@ -359,36 +399,64 @@ const ChatInterface = () => {
                             </Button>
                           </div>
                         </div>
-                      ) : (
-                        <>
-                          <p className="text-sm whitespace-pre-wrap">{message.text}</p>
-                          <div className="flex items-center justify-between mt-2">
-                            <p
-                              className={`text-xs ${
-                                message.sender === 'user' ? 'text-blue-100' : 'text-gray-500'
-                              }`}
-                            >
-                              {message.timestamp.toLocaleTimeString()}
-                            </p>
-                            {message.sender === 'user' && (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => startEditing(message.id, message.text)}
-                                className={`h-6 w-6 p-0 ${
-                                  message.sender === 'user' 
-                                    ? 'text-blue-100 hover:text-white hover:bg-blue-600' 
-                                    : 'text-gray-500 hover:text-gray-700'
-                                }`}
-                              >
-                                <Edit2 className="w-3 h-3" />
-                              </Button>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <>
+                      {formatMessageContent(message.text).map((part, index) => (
+                        <Card
+                          key={index}
+                          className={`${
+                            part.type === 'code'
+                              ? 'bg-gray-900 border-gray-700'
+                              : message.sender === 'user'
+                              ? 'bg-blue-500 text-white border-blue-500'
+                              : 'bg-white'
+                          }`}
+                        >
+                          {part.type === 'code' && (
+                            <CardHeader className="pb-2">
+                              <div className="flex items-center justify-between">
+                                <Badge variant="secondary" className="text-xs bg-gray-700 text-gray-300">
+                                  <Code className="w-3 h-3 mr-1" />
+                                  {part.language}
+                                </Badge>
+                              </div>
+                            </CardHeader>
+                          )}
+                          <CardContent className={part.type === 'code' ? 'pt-0 p-3' : 'p-3'}>
+                            {part.type === 'code' ? (
+                              <pre className="text-sm text-green-400 overflow-x-auto">
+                                <code>{part.content}</code>
+                              </pre>
+                            ) : (
+                              <p className="text-sm whitespace-pre-wrap">{part.content}</p>
                             )}
-                          </div>
-                        </>
-                      )}
-                    </CardContent>
-                  </Card>
+                          </CardContent>
+                        </Card>
+                      ))}
+                      
+                      <div className="flex items-center justify-between mt-2 px-3">
+                        <p
+                          className={`text-xs ${
+                            message.sender === 'user' ? 'text-blue-600' : 'text-gray-500'
+                          }`}
+                        >
+                          {message.timestamp.toLocaleTimeString()}
+                        </p>
+                        {message.sender === 'user' && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => startEditing(message.id, message.text)}
+                            className="h-6 w-6 p-0 text-gray-500 hover:text-gray-700"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
