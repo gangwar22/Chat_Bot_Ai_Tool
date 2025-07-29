@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Settings, MessageSquare, Code, HeartHandshake, Edit2, Check, X, LogOut } from 'lucide-react';
+import { Send, Bot, User, Settings, MessageSquare, Code, HeartHandshake, Edit2, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,7 +8,6 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { useAuth } from '@/contexts/AuthContext';
 
 interface Message {
   id: string;
@@ -66,7 +65,6 @@ const formatMessageContent = (text: string) => {
 };
 
 const ChatInterface = () => {
-  const { user, signOut } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -317,23 +315,6 @@ const ChatInterface = () => {
                 ))}
               </SelectContent>
             </Select>
-            
-            {/* User Profile and Logout */}
-            <div className="flex items-center space-x-2">
-              <Avatar className="w-8 h-8">
-                <AvatarFallback>
-                  {user?.email?.charAt(0).toUpperCase() || 'U'}
-                </AvatarFallback>
-              </Avatar>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={signOut}
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
-            </div>
           </div>
         </div>
       </div>
